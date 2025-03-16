@@ -1,0 +1,146 @@
+import argparse
+import os
+from collections import defaultdict
+import json
+
+import numpy as np
+import pandas as pd
+
+from utils import eval_over_linear_regression_datasets
+from routines import run_lasso, run_rs_regression, run_gradient_descent_lasso
+from data import isotropic_predictor_data
+
+np.set_printoptions(precision=8, suppress=True)
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--num_samples', type=int, default=1000)
+parser.add_argument('--predictor_dim', type=int, default=100)
+parser.add_argument('--respond_dim', type=int, default=1)
+parser.add_argument('--batch_size', type=int, default=1000)
+parser.add_argument('--noisy_variance', type=float, default=0.1)
+parser.add_argument('--optname', type=str, default='SGD')
+parser.add_argument('--lr', type=float, default=1e-2)
+parser.add_argument('--epoch', type=int, default=1000)
+parser.add_argument('--device', type=str, default='cuda:0')
+parser.add_argument('--num_alpha', type=int, default=10)
+
+def get_closest_alpha(alphas, a):
+    min_idx = np.abs(a - np.asarray(alphas)).argmin()
+    return alphas[min_idx]
+
+if __name__ == "__main__":
+    args = parser.parse_args()
+    for lr in [1e-1, 1e-2, 1e-3]:
+        args.lr = lr
+        output_folder = os.path.join(
+            "linear/output/log", f"{args.predictor_dim}_{args.respond_dim}_{args.lr}")
+        os.makedirs(output_folder, exist_ok=True)
+
+        (x, y), trans = isotropic_predictor_data(args.num_samples,
+                                                args.predictor_dim,
+                                                args.respond_dim,
+                                                args.noisy_variance,
+                                                seed=666)
+
+        # manually set the alpha thresholding
+        # alpha_range = np.logspace(-9, 1, args.num_alpha, base=3)
+        # alpha_range = np.floor(alpha_range * 1e6 ) * 1e-6
+        # alpha_range = np.round(alpha_range, 4)
+        alpha_range = np.linspace(0, 3, 16)
+        alpha_range = np.round(alpha_range, 2)
+        print(alpha_range)
+
+        gd_lasso_file = os.path.join(output_folder, 'gd_lasso_metrics.csv')
+        if os.path.exists(gd_lasso_file):
+            print(f"gradient descent lasso file {gd_lasso_file} already found")
+            gd_lasso_df = pd.read_csv(gd_lasso_file)
+        else:
+            print(f"gradient descent lasso file {gd_lasso_file} not found")
+            data = defaultdict(list)
+            for alpha in alpha_range.tolist():
+                data['alpha'].append(alpha)
+                # 运行梯度下降法求解 Lasso
+                gd_lasso_fetch = run_gradient_descent_lasso(alpha, x, y, max_iter=10000, lr=1e-3)
+                data['time'].append(gd_lasso_fetch['time'])
+                data['iterations'].append(gd_lasso_fetch['iterations'])
+                # 计算评估指标
+                gd_lasso_eval_fetch = eval_over_linear_regression_datasets(x, y, gd_lasso_fetch['weights'], alpha)
+                for k in gd_lasso_eval_fetch:
+                    data[k].append(gd_lasso_eval_fetch[k])
+            gd_lasso_df = pd.DataFrame(data)
+            gd_lasso_df.to_csv(gd_lasso_file, index=False)
+            print(gd_lasso_df.to_string())
+
+        # exit()
+"""
+        # run lars if there is no lasso record
+        lars_file = os.path.join(output_folder, 'lars_metrics.csv')
+        # re run the lasso
+        if os.path.exists(lars_file):
+            print(f"lasso file {lars_file} already found")
+            lars_df = pd.read_csv(lars_file)
+        else:
+            print(f"lasso file {lars_file} not found")
+            data = defaultdict(list)
+            for alpha in alpha_range.tolist():
+                data['alpha'].append(alpha)
+
+                lars_fetch = run_lasso(alpha, x, y, method='LARS')
+                data['time'].append(lars_fetch['time'])
+                lars_eval_fetch = eval_over_linear_regression_datasets(x, y, lars_fetch['weights'], alpha)
+                for k in lars_eval_fetch:
+                    data[k].append(lars_eval_fetch[k])
+            lars_df = pd.DataFrame(data)
+            lars_df.to_csv(lars_file, index=False)
+            print(lars_df.to_string())
+
+        # run lasso if there is no lasso record
+        lasso_file = os.path.join(output_folder, 'lasso_metrics.csv')
+        # re run the lasso
+        if os.path.exists(lasso_file):
+            print(f"lasso file {lasso_file} already found")
+            lasso_df = pd.read_csv(lasso_file)
+        else:
+            print(f"lasso file {lasso_file} not found")
+            data = defaultdict(list)
+            for alpha in alpha_range.tolist():
+                data['alpha'].append(alpha)
+
+                lasso_fetch = run_lasso(alpha, x, y, method='lasso')
+                data['time'].append(lasso_fetch['time'])
+                lasso_eval_fetch = eval_over_linear_regression_datasets(x, y, lasso_fetch['weights'], alpha)
+                for k in lasso_eval_fetch:
+                    data[k].append(lasso_eval_fetch[k])
+            lasso_df = pd.DataFrame(data)
+            lasso_df.to_csv(lasso_file, index=False)
+            print(lasso_df.to_string())
+
+            lasso_file = os.path.join(output_folder, 'lasso_metrics.csv')
+            lasso_df = pd.read_csv(lasso_file)
+
+
+        # run rs
+        data = defaultdict(list)
+        for alpha in alpha_range.tolist():
+            a = get_closest_alpha(lasso_df.alpha, alpha)
+            lasso_record = lasso_df[lasso_df.alpha == a].to_dict('list')
+            print(lasso_record)
+            target_loss = lasso_record['total'][0]
+            target_zero_rate = lasso_record['zero_rate12'][0]
+            rs_fetch = run_rs_regression(a, x, y,
+                                        optname=args.optname,
+                                        epochs=args.epoch,
+                                        batch_size=args.batch_size,
+                                        lr=args.lr,
+                                        device=args.device,
+                                        loss_func='mse',
+                                        eval_every_epoch=100)
+
+            filename = os.path.join(
+                output_folder,
+                f'rs_metrics-alpha={alpha}-optname={args.optname}-lr={args.lr}')
+
+            with open(filename, 'wt') as f:
+                for metric in rs_fetch['metric_list']:
+                    f.write(json.dumps(metric) + '\n')
+"""
