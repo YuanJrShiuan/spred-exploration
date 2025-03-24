@@ -105,51 +105,50 @@ def run_rs_regression(alpha, x, y,
             'metric_list': metric_list}
 
 
-
 def run_gradient_descent_lasso(alpha, x, y, max_iter=10000, lr=1e-3, tol=1e-6):
     """
-    使用梯度下降法求解 Lasso 回归问题
-    :param alpha: L1 正则化系数
-    :param x: 特征矩阵
-    :param y: 目标值
-    :param max_iter: 最大迭代次数
-    :param lr: 学习率
-    :param tol: 收敛容忍度
-    :return: 训练后的权重、训练时间、迭代次数等信息
+    Solve the Lasso regression problem using gradient descent.
+    :param alpha: L1 regularization coefficient
+    :param x: Feature matrix
+    :param y: Target values
+    :param max_iter: Maximum number of iterations
+    :param lr: Learning rate
+    :param tol: Convergence tolerance
+    :return: Trained weights, training time, number of iterations, and other information
     """
     import numpy as np
     import time
 
     n_samples, n_features = x.shape
-    # 初始化权重
+    # Initialize weights
     weights = np.zeros(n_features)
-    # 转换数据类型
+    # Convert data types
     x = np.array(x, dtype=np.float64)
-    y = np.array(y, dtype=np.float64).flatten()  # 确保 y 是一维数组
-    # 记录训练时间
+    y = np.array(y, dtype=np.float64).flatten()  # Ensure y is a 1D array
+    # Record training time
     start_time = time.time()
-    # 归一化特征
+    # Normalize features
     x_mean = np.mean(x, axis=0)
     x_std = np.std(x, axis=0)
     x = (x - x_mean) / x_std
     y_mean = np.mean(y)
     y = y - y_mean
-    # 梯度下降迭代
+    # Gradient descent iteration
     for iter in range(max_iter):
-        # 计算预测值
+        # Compute predictions
         y_pred = np.dot(x, weights)
-        # 计算误差
+        # Compute error
         error = y_pred - y
-        # 计算梯度
+        # Compute gradient
         grad = (np.dot(x.T, error) / n_samples) + alpha * np.sign(weights)
-        # 更新权重
+        # Update weights
         weights -= lr * grad
-        # 检查收敛条件
+        # Check convergence condition
         if np.linalg.norm(grad) < tol:
             break
-    # 计算训练时间
+    # Calculate training time
     train_time = time.time() - start_time
-    # 返回结果
+    # Return results
     return {
         'weights': weights,
         'time': train_time,

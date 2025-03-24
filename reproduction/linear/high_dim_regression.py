@@ -33,7 +33,7 @@ if __name__ == "__main__":
     for lr in [1e-1, 1e-2, 1e-3]:
         args.lr = lr
         output_folder = os.path.join(
-            "linear/output/log", f"{args.predictor_dim}_{args.respond_dim}_{args.lr}")
+            "reproduction/linear/output/log", f"{args.predictor_dim}_{args.respond_dim}_{args.lr}")
         os.makedirs(output_folder, exist_ok=True)
 
         (x, y), trans = isotropic_predictor_data(args.num_samples,
@@ -42,14 +42,11 @@ if __name__ == "__main__":
                                                 args.noisy_variance,
                                                 seed=666)
 
-        # manually set the alpha thresholding
-        # alpha_range = np.logspace(-9, 1, args.num_alpha, base=3)
-        # alpha_range = np.floor(alpha_range * 1e6 ) * 1e-6
-        # alpha_range = np.round(alpha_range, 4)
         alpha_range = np.linspace(0, 3, 16)
         alpha_range = np.round(alpha_range, 2)
         print(alpha_range)
 
+        # run gradient descent lasso
         gd_lasso_file = os.path.join(output_folder, 'gd_lasso_metrics.csv')
         if os.path.exists(gd_lasso_file):
             print(f"gradient descent lasso file {gd_lasso_file} already found")
@@ -71,8 +68,6 @@ if __name__ == "__main__":
             gd_lasso_df.to_csv(gd_lasso_file, index=False)
             print(gd_lasso_df.to_string())
 
-        # exit()
-"""
         # run lars if there is no lasso record
         lars_file = os.path.join(output_folder, 'lars_metrics.csv')
         # re run the lasso
@@ -143,4 +138,3 @@ if __name__ == "__main__":
             with open(filename, 'wt') as f:
                 for metric in rs_fetch['metric_list']:
                     f.write(json.dumps(metric) + '\n')
-"""
