@@ -59,9 +59,10 @@ While the $\ell_1$ loss decreases steadily with increasing $\alpha$ (i.e., the $
 
 ---
 
-## 3. SVD Product
+## 3. Other Alternatives (All failed the spasification task)
 
-(*To be detailed...*)
+SVD Product, etc.
+
 
 ---
 
